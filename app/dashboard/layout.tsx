@@ -20,6 +20,7 @@ type NavLink = {
 };
 
 const navLinks: NavLink[] = [
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/dashboard/daily-goals", label: "Today's Goals" },
   { href: "/dashboard/activity", label: "Activity Log" },
   { href: "/dashboard/metrics", label: "Metrics" },
@@ -102,7 +103,10 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (authLoading || !user) return;
-    loadProfile();
+    const timer = window.setTimeout(() => {
+      void loadProfile();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [authLoading, user, loadProfile]);
 
   if (authLoading) {

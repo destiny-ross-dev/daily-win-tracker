@@ -132,7 +132,7 @@ Tables:
   - `created_at`, `updated_at`
 - `quotes_sales`
   - `id`, `user_id` references `auth.users.id`
-  - `policyholder`, `lob`, `policy_type`
+  - `policyholder`, `lob`, `policy_type`, `zipcode`
   - `quoted_date`, `quoted_premium`
   - `written_date`, `written_premium`
   - `issued_date`, `issued_premium`,

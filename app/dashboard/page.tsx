@@ -198,8 +198,8 @@ export default function DashboardPage() {
                 value={dash.teamTotals.quotes}
               />
               <KpiCard
-                label={`Team issued (${rangeSuffix})`}
-                value={dash.teamTotals.issued}
+                label={`Team sales (${rangeSuffix})`}
+                value={dash.teamTotals.sales}
               />
               <KpiCard
                 label={`Appointments (${rangeSuffix})`}
@@ -232,7 +232,7 @@ export default function DashboardPage() {
                           <th>Name</th>
                           <th className="text-right">Dials</th>
                           <th className="text-right">Quotes</th>
-                          <th className="text-right">Issued</th>
+                          <th className="text-right">Sales</th>
                           <th className="text-right">Appts</th>
                         </tr>
                       </thead>
@@ -255,7 +255,7 @@ export default function DashboardPage() {
                                 {r.quotes}
                               </td>
                               <td className="py-2 text-right tabular-nums">
-                                {r.issued}
+                                {r.sales}
                               </td>
                               <td className="py-2 text-right tabular-nums">
                                 {r.appointments}
@@ -269,31 +269,73 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Appointments */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Appointments
-                </h2>
-                <div className="mt-4 space-y-3">
-                  {dash.appointments.length === 0 ? (
-                    <div className="text-sm text-slate-600">
-                      No appointments scheduled.
-                    </div>
-                  ) : (
-                    dash.appointments.slice(0, 12).map((a) => (
-                      <div
-                        key={a.id}
-                        className="rounded-xl border border-slate-100 p-3"
-                      >
-                        <div className="text-sm font-medium text-slate-900">
-                          {a.policyholder}
+              {/* Right column */}
+              <div className="space-y-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Appointments
+                  </h2>
+                  <div className="mt-4 space-y-3">
+                    {dash.appointments.length === 0 ? (
+                      <div className="text-sm text-slate-600">
+                        No appointments scheduled.
+                      </div>
+                    ) : (
+                      dash.appointments.slice(0, 12).map((a) => (
+                        <div
+                          key={a.id}
+                          className="rounded-xl border border-slate-100 p-3"
+                        >
+                          <div className="text-sm font-medium text-slate-900">
+                            {a.policyholder}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {format(parseISO(a.datetime), "p")}
+                          </div>
                         </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {format(parseISO(a.datetime), "p")}
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex items-baseline justify-between">
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Live activity
+                    </h2>
+                    {dash.feedLoading ? (
+                      <span className="text-xs text-slate-500">Refreshing…</span>
+                    ) : null}
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {dash.feed.length === 0 && !dash.feedLoading ? (
+                      <div className="text-sm text-slate-600">
+                        No recent activity yet.
+                      </div>
+                    ) : null}
+                    {dash.feed.map((item) => (
+                      <div
+                        key={`${item.type}-${item.id}`}
+                        className="rounded-xl border border-slate-100 px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">
+                              {item.title}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {item.detail} • {item.userName}
+                            </div>
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {item.timestamp
+                              ? format(parseISO(item.timestamp), "MMM d, h:mm a")
+                              : "—"}
+                          </div>
                         </div>
                       </div>
-                    ))
-                  )}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

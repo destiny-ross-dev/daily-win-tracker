@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays } from "date-fns";
 import { supabase } from "@/lib/supabase/client";
 import { isoDateLocal, parseIsoDateLocal } from "@/lib/dates";
@@ -16,7 +16,7 @@ type ProducerRecord = Producer;
 type ProducerRow = Producer & {
   dials: number;
   quotes: number;
-  issued: number;
+  sales: number;
   appointments: number;
 };
 
@@ -45,8 +45,19 @@ type QuoteSale = {
   lob: string;
   quoted_date: string | null;
   quoted_premium: number | null;
+  written_date: string | null;
+  written_premium: number | null;
   issued_date: string | null;
   issued_premium: number | null;
+};
+
+type ActivityFeedItem = {
+  id: string;
+  type: "quote" | "sale" | "appointment";
+  title: string;
+  detail: string;
+  userName: string;
+  timestamp: string;
 };
 
 export type DateRange = {
@@ -82,16 +93,25 @@ export function useDashboardData(range?: DateRange) {
   const [rows, setRows] = useState<ProducerRow[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [quotes, setQuotes] = useState<QuoteSale[]>([]);
+  const [feed, setFeed] = useState<ActivityFeedItem[]>([]);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [userIds, setUserIds] = useState<string[]>([]);
 
   const startDate = range?.startDate ?? isoDateLocal();
   const endDate = range?.endDate ?? startDate;
 
-  useEffect(() => {
-    let cancelled = false;
+  const cancelledRef = useRef(false);
 
-    async function load() {
-      setLoading(true);
-      setError(null);
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
       // 1) Producers in my agency (RLS should scope this)
       const { data: profs, error: pErr } = await supabase
@@ -99,22 +119,31 @@ export function useDashboardData(range?: DateRange) {
         .select("id, first_name, last_name")
         .order("last_name", { ascending: true });
 
-      if (cancelled) return;
+      if (cancelledRef.current) return;
       if (pErr) {
         setError(pErr.message);
         setLoading(false);
         return;
       }
 
-      const producerList: Producer[] = (profs ?? []).map((p: ProducerRecord) => ({
-        id: p.id,
-        first_name: p.first_name ?? null,
-        last_name: p.last_name ?? null,
-      }));
+      const producerList: Producer[] = (profs ?? []).map(
+        (p: ProducerRecord) => ({
+          id: p.id,
+          first_name: p.first_name ?? null,
+          last_name: p.last_name ?? null,
+        })
+      );
 
       setProducers(producerList);
+      const producerNameById = new Map(
+        producerList.map((p) => [
+          p.id,
+          `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "Unknown",
+        ])
+      );
 
       const userIds = producerList.map((p) => p.id);
+      setUserIds(userIds);
       if (userIds.length === 0) {
         setRows([]);
         setAppointments([]);
@@ -133,7 +162,7 @@ export function useDashboardData(range?: DateRange) {
         .lte("date", endDate)
         .in("user_id", userIds);
 
-      if (cancelled) return;
+      if (cancelledRef.current) return;
       if (aErr) {
         setError(aErr.message);
         setLoading(false);
@@ -145,7 +174,8 @@ export function useDashboardData(range?: DateRange) {
         const current = activityByUser.get(a.user_id) ?? emptyDailyTotals();
         activityByUser.set(a.user_id, {
           no_answer_count: current.no_answer_count + (a.no_answer_count ?? 0),
-          bad_contact_count: current.bad_contact_count + (a.bad_contact_count ?? 0),
+          bad_contact_count:
+            current.bad_contact_count + (a.bad_contact_count ?? 0),
           not_interested_count:
             current.not_interested_count + (a.not_interested_count ?? 0),
           callback_scheduled:
@@ -172,7 +202,7 @@ export function useDashboardData(range?: DateRange) {
         .in("user_id", userIds)
         .order("datetime", { ascending: true });
 
-      if (cancelled) return;
+      if (cancelledRef.current) return;
       if (apErr) {
         setError(apErr.message);
         setLoading(false);
@@ -186,16 +216,16 @@ export function useDashboardData(range?: DateRange) {
       const { data: qs, error: qErr } = await supabase
         .from("quotes_sales")
         .select(
-          "id, user_id, policyholder, lob, quoted_date, quoted_premium, issued_date, issued_premium"
+          "id, user_id, policyholder, lob, quoted_date, quoted_premium, written_date, written_premium, issued_date, issued_premium"
         )
         .in("user_id", userIds)
         .or(
-          `and(quoted_date.gte.${startDate},quoted_date.lte.${endDate}),and(issued_date.gte.${startDate},issued_date.lte.${endDate})`
+          `and(quoted_date.gte.${startDate},quoted_date.lte.${endDate}),and(written_date.gte.${startDate},written_date.lte.${endDate}),and(issued_date.gte.${startDate},issued_date.lte.${endDate})`
         )
         .order("created_at", { ascending: false })
         .limit(200);
 
-      if (cancelled) return;
+      if (cancelledRef.current) return;
       if (qErr) {
         setError(qErr.message);
         setLoading(false);
@@ -206,7 +236,7 @@ export function useDashboardData(range?: DateRange) {
 
       // Build producer rows
       const quoteCountByUser = new Map<string, number>();
-      const issuedCountByUser = new Map<string, number>();
+      const salesCountByUser = new Map<string, number>();
       const apptCountByUser = new Map<string, number>();
 
       const isInRange = (value: string | null) =>
@@ -219,10 +249,10 @@ export function useDashboardData(range?: DateRange) {
             (quoteCountByUser.get(r.user_id) ?? 0) + 1
           );
         }
-        if (isInRange(r.issued_date)) {
-          issuedCountByUser.set(
+        if (isInRange(r.written_date) && r.written_premium != null) {
+          salesCountByUser.set(
             r.user_id,
-            (issuedCountByUser.get(r.user_id) ?? 0) + 1
+            (salesCountByUser.get(r.user_id) ?? 0) + 1
           );
         }
       });
@@ -249,31 +279,138 @@ export function useDashboardData(range?: DateRange) {
           ...p,
           dials,
           quotes: quoteCountByUser.get(p.id) ?? 0,
-          issued: issuedCountByUser.get(p.id) ?? 0,
+          sales: salesCountByUser.get(p.id) ?? 0,
           appointments: apptCountByUser.get(p.id) ?? 0,
         };
       });
 
       setRows(computedRows);
-      setLoading(false);
-    }
 
-    load();
+      // 5) Live activity feed (recent quotes/sales + appointments)
+      setFeedLoading(true);
+      const { data: feedQuotes, error: fqErr } = await supabase
+        .from("quotes_sales")
+        .select(
+          "id, user_id, policyholder, lob, written_date, quoted_date, created_at"
+        )
+        .in("user_id", userIds)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (cancelledRef.current) return;
+      if (fqErr) {
+        setFeedLoading(false);
+        setLoading(false);
+        return;
+      }
+
+      const { data: feedAppts, error: faErr } = await supabase
+        .from("daily_appointments")
+        .select("id, user_id, policyholder, datetime, created_at")
+        .in("user_id", userIds)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (cancelledRef.current) return;
+      if (faErr) {
+        setFeedLoading(false);
+        setLoading(false);
+        return;
+      }
+
+      const quoteItems =
+        feedQuotes?.map<ActivityFeedItem>((q) => {
+          const isSale = !!q.written_date;
+          const lobLabel = q.lob ? q.lob.toUpperCase() : "Quote";
+          const userName = producerNameById.get(q.user_id) ?? "Unknown";
+          return {
+            id: q.id,
+            type: isSale ? "sale" : "quote",
+            title: isSale ? "Sale written" : "Quote created",
+            detail: `${q.policyholder} • ${lobLabel}`,
+            userName,
+            timestamp: q.created_at ?? q.written_date ?? q.quoted_date ?? "",
+          };
+        }) ?? [];
+
+      const apptItems =
+        feedAppts?.map<ActivityFeedItem>((a) => ({
+          id: a.id,
+          type: "appointment",
+          title: "Appointment scheduled",
+          detail: a.policyholder,
+          userName: producerNameById.get(a.user_id) ?? "Unknown",
+          timestamp: a.created_at ?? a.datetime ?? "",
+        })) ?? [];
+
+      const merged = [...quoteItems, ...apptItems].sort((a, b) => {
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      });
+
+      setFeed(merged.slice(0, 12));
+      setFeedLoading(false);
+      setLoading(false);
+  }, [endDate, startDate]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  const reloadRef = useRef(load);
+  useEffect(() => {
+    reloadRef.current = load;
+  }, [load]);
+
+  useEffect(() => {
+    if (userIds.length === 0) return;
+
+    const userFilter = `user_id=in.(${userIds.join(",")})`;
+
+    const channel = supabase
+      .channel(`dashboard-realtime-${userIds.join(",")}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_activities", filter: userFilter },
+        () => {
+          void reloadRef.current();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_appointments", filter: userFilter },
+        () => {
+          void reloadRef.current();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "quotes_sales", filter: userFilter },
+        () => {
+          void reloadRef.current();
+        }
+      )
+      .subscribe();
+
     return () => {
-      cancelled = true;
+      void supabase.removeChannel(channel);
     };
-  }, [startDate, endDate]);
+  }, [userIds]);
 
   const teamTotals = useMemo(() => {
     const totals = rows.reduce(
       (acc, r) => {
         acc.dials += r.dials;
         acc.quotes += r.quotes;
-        acc.issued += r.issued;
+        acc.sales += r.sales ?? 0;
         acc.appointments += r.appointments;
         return acc;
       },
-      { dials: 0, quotes: 0, issued: 0, appointments: 0 }
+      { dials: 0, quotes: 0, sales: 0, appointments: 0 }
     );
     return totals;
   }, [rows]);
@@ -285,6 +422,8 @@ export function useDashboardData(range?: DateRange) {
     rows,
     appointments,
     quotes,
+    feed,
+    feedLoading,
     teamTotals,
   };
 }

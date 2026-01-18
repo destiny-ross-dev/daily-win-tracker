@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
 type SignupState = "idle" | "submitting" | "success";
@@ -11,6 +12,7 @@ function isValidEmail(email: string) {
 }
 
 export default function SignupPage() {
+  const router = useRouter();
   const [state, setState] = useState<SignupState>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -59,10 +61,13 @@ export default function SignupPage() {
       return;
     }
 
-    // Supabase may return a session immediately (email/password) OR require email confirmation.
-    // Either way, we show success guidance.
-    if (data?.user) setState("success");
-    else setState("success");
+    // Supabase may return a session immediately OR require email confirmation.
+    if (data?.session) {
+      router.replace("/dashboard");
+      return;
+    }
+
+    setState("success");
   }
 
   return (
@@ -81,7 +86,7 @@ export default function SignupPage() {
               <p className="font-medium">Check your email</p>
               <p className="mt-1 text-emerald-900/90">
                 If email confirmation is enabled, we sent you a link to verify
-                your account. After verifying, you can sign in.
+                your account. After verifying, sign in to finish agency setup.
               </p>
               <div className="mt-4">
                 <Link
