@@ -304,7 +304,9 @@ export default function DashboardPage() {
                       Live activity
                     </h2>
                     {dash.feedLoading ? (
-                      <span className="text-xs text-slate-500">Refreshing…</span>
+                      <span className="text-xs text-slate-500">
+                        Refreshing…
+                      </span>
                     ) : null}
                   </div>
                   <div className="mt-4 space-y-3">
@@ -324,13 +326,21 @@ export default function DashboardPage() {
                               {item.title}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
-                              {item.detail} • {item.userName}
+                              {item.detail}
                             </div>
                           </div>
-                          <div className="text-xs text-slate-500">
-                            {item.timestamp
-                              ? format(parseISO(item.timestamp), "MMM d, h:mm a")
-                              : "—"}
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">
+                              {item.userName}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {item.timestamp
+                                ? format(
+                                    parseISO(item.timestamp),
+                                    "MMM d, h:mm a"
+                                  )
+                                : "—"}
+                            </div>
                           </div>
                         </div>
                       </div>
