@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays } from "date-fns";
 import { supabase } from "@/lib/supabase/client";
 import { isoDateLocal, parseIsoDateLocal } from "@/lib/dates";
+import type { ActivityFeedItem } from "@/components/dashboard/activity/types";
+import { formatAppointmentDetail } from "@/components/dashboard/activity/formatAppointmentDetail";
 
 type Producer = {
   id: string;
@@ -40,6 +42,8 @@ type Appointment = {
   user_id: string;
   datetime: string;
   policyholder: string;
+  lob: string | null;
+  policy_type: string | null;
 };
 
 type QuoteSale = {
@@ -55,13 +59,14 @@ type QuoteSale = {
   issued_premium: number | null;
 };
 
-type ActivityFeedItem = {
+type FeedAppointment = {
   id: string;
-  type: "quote" | "sale" | "appointment";
-  title: string;
-  detail: string;
-  userName: string;
-  timestamp: string;
+  user_id: string;
+  policyholder: string;
+  datetime: string;
+  created_at: string | null;
+  lob: string | null;
+  policy_type: string | null;
 };
 
 export type DateRange = {
@@ -200,7 +205,7 @@ export function useDashboardData(range?: DateRange) {
 
       const { data: appts, error: apErr } = await supabase
         .from("daily_appointments")
-        .select("id, user_id, datetime, policyholder")
+        .select("id, user_id, datetime, policyholder, lob, policy_type")
         .gte("datetime", start.toISOString())
         .lt("datetime", end.toISOString())
         .in("user_id", userIds)
@@ -338,7 +343,7 @@ export function useDashboardData(range?: DateRange) {
 
       const { data: feedAppts, error: faErr } = await supabase
         .from("daily_appointments")
-        .select("id, user_id, policyholder, datetime, created_at")
+        .select("id, user_id, policyholder, datetime, created_at, lob, policy_type")
         .in("user_id", userIds)
         .order("created_at", { ascending: false })
         .limit(20);
@@ -366,11 +371,15 @@ export function useDashboardData(range?: DateRange) {
         }) ?? [];
 
       const apptItems =
-        feedAppts?.map<ActivityFeedItem>((a) => ({
+        feedAppts?.map<ActivityFeedItem>((a: FeedAppointment) => ({
           id: a.id,
           type: "appointment",
           title: "Appointment scheduled",
-          detail: a.policyholder,
+          detail: formatAppointmentDetail({
+            policyholder: a.policyholder,
+            lob: a.lob,
+            policyType: a.policy_type,
+          }),
           userName: producerNameById.get(a.user_id) ?? "Unknown",
           timestamp: a.created_at ?? a.datetime ?? "",
         })) ?? [];

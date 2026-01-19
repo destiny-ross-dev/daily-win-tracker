@@ -17,11 +17,15 @@ import {
 import { isoDateLocal, parseIsoDateLocal } from "@/lib/dates";
 import { useDashboardProfile } from "@/components/dashboard/DashboardProfileContext";
 import { useDncDay } from "@/components/dashboard/useDncDay";
-
-type RangePreset = "today" | "this_week" | "this_month" | "custom";
+import { ActivityFeed } from "@/components/dashboard/activity/ActivityFeed";
+import { formatAppointmentDetail } from "@/components/dashboard/activity/formatAppointmentDetail";
+import {
+  DateRangePicker,
+  DateRangePreset,
+} from "@/components/dashboard/DateRangePicker";
 
 export default function DashboardPage() {
-  const [preset, setPreset] = useState<RangePreset>("today");
+  const [preset, setPreset] = useState<DateRangePreset>("today");
   const [customStart, setCustomStart] = useState(isoDateLocal());
   const [customEnd, setCustomEnd] = useState(isoDateLocal());
   const today = useMemo(() => isoDateLocal(), []);
@@ -111,80 +115,20 @@ export default function DashboardPage() {
           </div>
         </div> */}
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="text-sm font-semibold text-slate-700">
-              Date Range
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {(
-                [
-                  { id: "today", label: "Today" },
-                  { id: "this_week", label: "This Week" },
-                  { id: "this_month", label: "This Month" },
-                  { id: "custom", label: "Custom" },
-                ] as const
-              ).map((option) => {
-                const isActive = preset === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setPreset(option.id)}
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                      isActive
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-medium text-slate-700">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Showing: {coverageLabel}
-              </span>
-            </div>
-          </div>
-
-          {preset === "custom" ? (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <label className="text-xs font-medium text-slate-600">
-                Start date
-                <input
-                  type="date"
-                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                  value={customStart}
-                  onChange={(event) => {
-                    const next = event.target.value || customStart;
-                    setCustomStart(next);
-                    if (next > customEnd) {
-                      setCustomEnd(next);
-                    }
-                  }}
-                />
-              </label>
-              <label className="text-xs font-medium text-slate-600">
-                End date
-                <input
-                  type="date"
-                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                  value={customEnd}
-                  onChange={(event) => {
-                    const next = event.target.value || customEnd;
-                    setCustomEnd(next);
-                    if (next < customStart) {
-                      setCustomStart(next);
-                    }
-                  }}
-                />
-              </label>
-            </div>
-          ) : null}
-        </div>
+        <DateRangePicker
+          preset={preset}
+          onPresetChange={setPreset}
+          customStart={customStart}
+          customEnd={customEnd}
+          onCustomStartChange={setCustomStart}
+          onCustomEndChange={setCustomEnd}
+          summary={
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-medium text-slate-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Showing: {coverageLabel}
+            </span>
+          }
+        />
 
         {dncHolidayName ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
@@ -318,6 +262,13 @@ export default function DashboardPage() {
                             {a.policyholder}
                           </div>
                           <div className="mt-1 text-xs text-slate-500">
+                            {formatAppointmentDetail({
+                              policyholder: a.policyholder,
+                              lob: a.lob,
+                              policyType: a.policy_type,
+                            })}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
                             {format(parseISO(a.datetime), "p")}
                           </div>
                         </div>
@@ -326,55 +277,12 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-baseline justify-between">
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      Live activity
-                    </h2>
-                    {dash.feedLoading ? (
-                      <span className="text-xs text-slate-500">
-                        Refreshing…
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="mt-4 space-y-3">
-                    {dash.feed.length === 0 && !dash.feedLoading ? (
-                      <div className="text-sm text-slate-600">
-                        No recent activity yet.
-                      </div>
-                    ) : null}
-                    {dash.feed.map((item) => (
-                      <div
-                        key={`${item.type}-${item.id}`}
-                        className="rounded-xl border border-slate-100 px-4 py-3"
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="text-sm font-semibold text-slate-900">
-                              {item.title}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {item.detail}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-sm font-semibold text-slate-900">
-                              {item.userName}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {item.timestamp
-                                ? format(
-                                    parseISO(item.timestamp),
-                                    "MMM d, h:mm a"
-                                  )
-                                : "—"}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <ActivityFeed
+                  title="Live activity"
+                  items={dash.feed}
+                  loading={dash.feedLoading}
+                  emptyLabel="No recent activity yet."
+                />
               </div>
             </div>
           </>

@@ -1,18 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  endOfMonth,
-  endOfWeek,
-  format,
-  startOfMonth,
-  startOfWeek,
-} from "date-fns";
+import { endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
 import { supabase } from "@/lib/supabase/client";
-import { isoDateLocal, parseIsoDateLocal } from "@/lib/dates";
+import { isoDateLocal } from "@/lib/dates";
 import { useAuth } from "@/components/providers/AuthProvider";
-
-type RangePreset = "today" | "this_week" | "this_month" | "custom";
+import {
+  DateRangePicker,
+  DateRangePreset,
+} from "@/components/dashboard/DateRangePicker";
 
 type Metrics = {
   totalCalls: number;
@@ -30,7 +26,7 @@ const emptyMetrics: Metrics = {
 
 export default function MetricsPage() {
   const { user } = useAuth();
-  const [preset, setPreset] = useState<RangePreset>("today");
+  const [preset, setPreset] = useState<DateRangePreset>("today");
   const [customStart, setCustomStart] = useState(isoDateLocal());
   const [customEnd, setCustomEnd] = useState(isoDateLocal());
 
@@ -57,12 +53,6 @@ export default function MetricsPage() {
     }
     return { startDate: customStart, endDate: customEnd };
   }, [preset, customStart, customEnd]);
-
-  const coverageLabel = useMemo(() => {
-    const start = format(parseIsoDateLocal(range.startDate), "MMM d, yyyy");
-    const end = format(parseIsoDateLocal(range.endDate), "MMM d, yyyy");
-    return start === end ? start : `${start} → ${end}`;
-  }, [range.endDate, range.startDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,72 +170,14 @@ export default function MetricsPage() {
         </div>
       </div> */}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="text-sm font-semibold text-slate-700">Date Range</div>
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                { id: "today", label: "Today" },
-                { id: "this_week", label: "This Week" },
-                { id: "this_month", label: "This Month" },
-                { id: "custom", label: "Custom" },
-              ] as const
-            ).map((option) => {
-              const isActive = preset === option.id;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setPreset(option.id)}
-                  className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                    isActive
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {preset === "custom" ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="text-xs font-medium text-slate-600">
-              Start date
-              <input
-                type="date"
-                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                value={customStart}
-                onChange={(event) => {
-                  const next = event.target.value || customStart;
-                  setCustomStart(next);
-                  if (next > customEnd) {
-                    setCustomEnd(next);
-                  }
-                }}
-              />
-            </label>
-            <label className="text-xs font-medium text-slate-600">
-              End date
-              <input
-                type="date"
-                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                value={customEnd}
-                onChange={(event) => {
-                  const next = event.target.value || customEnd;
-                  setCustomEnd(next);
-                  if (next < customStart) {
-                    setCustomStart(next);
-                  }
-                }}
-              />
-            </label>
-          </div>
-        ) : null}
-      </div>
+      <DateRangePicker
+        preset={preset}
+        onPresetChange={setPreset}
+        customStart={customStart}
+        customEnd={customEnd}
+        onCustomStartChange={setCustomStart}
+        onCustomEndChange={setCustomEnd}
+      />
 
       {error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">

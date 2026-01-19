@@ -15,6 +15,7 @@ import { ActivityFeed } from "@/components/dashboard/activity/ActivityFeed";
 import { ActivityField } from "@/components/dashboard/activity/ActivityField";
 import { CallbackModal } from "@/components/dashboard/activity/CallbackModal";
 import { QuoteModal } from "@/components/dashboard/activity/QuoteModal";
+import { formatAppointmentDetail } from "@/components/dashboard/activity/formatAppointmentDetail";
 import type {
   ActivityFeedItem,
   CallbackForm,
@@ -76,6 +77,18 @@ const quoteTriggerFields: ReadonlySet<QuoteTriggerField> = new Set([
   "quoted_lost_count",
   "sales_count",
 ]);
+
+function getHourStatsDelta(key: ActivityCountKey, delta: number) {
+  const next = { calls: delta, quotes: 0, sales: 0 };
+  if (isQuoteTriggerField(key)) {
+    if (key === "sales_count") {
+      next.sales = delta;
+    } else {
+      next.quotes = delta;
+    }
+  }
+  return next;
+}
 
 function isQuoteTriggerField(
   value: ActivityCountKey,
@@ -268,9 +281,9 @@ export default function ActivityLogPage() {
       }
       setHourStats((prev) => {
         const next = {
-          calls: prev.calls + (updates.calls ?? 0),
-          quotes: prev.quotes + (updates.quotes ?? 0),
-          sales: prev.sales + (updates.sales ?? 0),
+          calls: Math.max(prev.calls + (updates.calls ?? 0), 0),
+          quotes: Math.max(prev.quotes + (updates.quotes ?? 0), 0),
+          sales: Math.max(prev.sales + (updates.sales ?? 0), 0),
         };
         writeHourStats(hourKeyRef.current, next);
         void persistHourStats(hourKeyRef.current, next);
@@ -355,7 +368,7 @@ export default function ActivityLogPage() {
 
     const { data: appts, error: aErr } = await supabase
       .from("daily_appointments")
-      .select("id, policyholder, datetime, created_at")
+      .select("id, policyholder, datetime, created_at, lob, policy_type")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(20);
@@ -389,7 +402,11 @@ export default function ActivityLogPage() {
         id: a.id,
         type: "appointment",
         title: "Callback scheduled",
-        detail: a.policyholder,
+        detail: formatAppointmentDetail({
+          policyholder: a.policyholder,
+          lob: a.lob,
+          policyType: a.policy_type,
+        }),
         userName,
         timestamp: a.created_at ?? a.datetime ?? "",
       })) ?? [];
@@ -457,8 +474,11 @@ export default function ActivityLogPage() {
       return next;
     });
 
-    if (delta > 0) {
-      updateHourStats({ calls: delta });
+    const shouldUpdateHourStats =
+      delta < 0 ||
+      (!isQuoteTriggerField(key) && key !== "callback_scheduled");
+    if (shouldUpdateHourStats) {
+      updateHourStats(getHourStatsDelta(key, delta));
     }
   }
 
