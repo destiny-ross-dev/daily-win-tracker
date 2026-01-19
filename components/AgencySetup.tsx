@@ -71,7 +71,7 @@ export default function AgencySetup({ onSuccess }: Props) {
     setSubmitting(true);
     setError(null);
 
-    const { data, error } = await supabase.rpc(
+    const { error } = await supabase.rpc(
       "bootstrap_create_agency_and_join",
       {
         p_name: name.trim(),

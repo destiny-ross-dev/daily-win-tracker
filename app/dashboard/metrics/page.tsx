@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
+import {
+  endOfMonth,
+  endOfWeek,
+  format,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { supabase } from "@/lib/supabase/client";
-import { isoDateLocal } from "@/lib/dates";
+import { isoDateLocal, parseIsoDateLocal } from "@/lib/dates";
 import { useAuth } from "@/components/providers/AuthProvider";
 import {
   DateRangePicker,
@@ -53,6 +59,12 @@ export default function MetricsPage() {
     }
     return { startDate: customStart, endDate: customEnd };
   }, [preset, customStart, customEnd]);
+
+  const coverageLabel = useMemo(() => {
+    const start = format(parseIsoDateLocal(range.startDate), "MMM d, yyyy");
+    const end = format(parseIsoDateLocal(range.endDate), "MMM d, yyyy");
+    return start === end ? start : `${start} → ${end}`;
+  }, [range.endDate, range.startDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,7 +171,7 @@ export default function MetricsPage() {
 
   return (
     <div className="space-y-6">
-      {/* <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Metrics</h1>
@@ -168,7 +180,7 @@ export default function MetricsPage() {
             </p>
           </div>
         </div>
-      </div> */}
+      </div>
 
       <DateRangePicker
         preset={preset}

@@ -102,10 +102,7 @@ export default function ActivityLogPage() {
   const date = useMemo(() => isoDateLocal(), []);
 
   const [activity, setActivity] = useState<ActivityCounts>(emptyActivity());
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   const [feed, setFeed] = useState<ActivityFeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
@@ -269,7 +266,7 @@ export default function ActivityLogPage() {
         hourIntervalRef.current = null;
       }
     };
-  }, [user]);
+  }, [loadHourStatsForKey, user]);
 
   const updateHourStats = useCallback(
     (updates: Partial<{ calls: number; quotes: number; sales: number }>) => {
@@ -298,7 +295,6 @@ export default function ActivityLogPage() {
 
     async function loadActivity() {
       if (!user) return;
-      setLoading(true);
       setError(null);
 
       const { data, error: aErr } = await supabase
@@ -313,7 +309,6 @@ export default function ActivityLogPage() {
       if (cancelled) return;
       if (aErr) {
         setError(aErr.message);
-        setLoading(false);
         return;
       }
 
@@ -331,7 +326,6 @@ export default function ActivityLogPage() {
       } else {
         setActivity(emptyActivity());
       }
-      setLoading(false);
     }
 
     loadActivity();
@@ -339,14 +333,6 @@ export default function ActivityLogPage() {
       cancelled = true;
     };
   }, [date, user]);
-
-  useEffect(() => {
-    if (!savedMessage) return;
-    const timeout = window.setTimeout(() => {
-      setSavedMessage(null);
-    }, 3000);
-    return () => window.clearTimeout(timeout);
-  }, [savedMessage]);
 
   const loadFeed = useCallback(async () => {
     if (!user) return;
@@ -475,8 +461,7 @@ export default function ActivityLogPage() {
     });
 
     const shouldUpdateHourStats =
-      delta < 0 ||
-      (!isQuoteTriggerField(key) && key !== "callback_scheduled");
+      delta < 0 || (!isQuoteTriggerField(key) && key !== "callback_scheduled");
     if (shouldUpdateHourStats) {
       updateHourStats(getHourStatsDelta(key, delta));
     }
@@ -507,29 +492,6 @@ export default function ActivityLogPage() {
     value: CallbackForm[Key],
   ) {
     setCallbackForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function saveActivity() {
-    if (!user) return;
-    setSaving(true);
-    setError(null);
-    setSavedMessage(null);
-
-    const payload: DailyActivity = {
-      user_id: user.id,
-      date,
-      ...activity,
-    };
-
-    const saveErr = await persistActivity(payload);
-
-    if (saveErr) {
-      setSaving(false);
-      return;
-    }
-
-    setSaving(false);
-    setSavedMessage("Activity saved.");
   }
 
   async function saveQuote() {
@@ -703,14 +665,22 @@ export default function ActivityLogPage() {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Activity Log
+            </h1>
+            <p className="mt-1 text-xs text-slate-500">
+              Date: {displayDateWeekdayMonthDayYear(parseIsoDateLocal(date))}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {error ? (
         <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
           {error}
-        </div>
-      ) : null}
-      {savedMessage ? (
-        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          {savedMessage}
         </div>
       ) : null}
       {dncHolidayName ? (

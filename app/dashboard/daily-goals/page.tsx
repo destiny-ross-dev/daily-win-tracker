@@ -2,11 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import {
-  displayDateWeekdayMonthDayYear,
-  isoDateLocal,
-  parseIsoDateLocal,
-} from "@/lib/dates";
+import { isoDateLocal } from "@/lib/dates";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useDashboardProfile } from "@/components/dashboard/DashboardProfileContext";
 import { useDncDay } from "@/components/dashboard/useDncDay";
@@ -46,7 +42,6 @@ export default function DailyGoalsPage() {
   const date = useMemo(() => isoDateLocal(), []);
 
   const [goals, setGoals] = useState(emptyGoals());
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
@@ -60,7 +55,6 @@ export default function DailyGoalsPage() {
 
     async function loadGoals() {
       if (!user) return;
-      setLoading(true);
       setError(null);
 
       const { data, error: gErr } = await supabase
@@ -75,7 +69,6 @@ export default function DailyGoalsPage() {
       if (cancelled) return;
       if (gErr) {
         setError(gErr.message);
-        setLoading(false);
         return;
       }
 
@@ -95,7 +88,6 @@ export default function DailyGoalsPage() {
       } else {
         setGoals(emptyGoals());
       }
-      setLoading(false);
     }
 
     loadGoals();
@@ -148,14 +140,32 @@ export default function DailyGoalsPage() {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Today’s Goals
+            </h1>
+          </div>
+          <button
+            type="button"
+            onClick={saveGoals}
+            disabled={saving}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+          >
+            {saving ? "Saving..." : "Save goals"}
+          </button>
+        </div>
+        {savedMessage ? (
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+            {savedMessage}
+          </div>
+        ) : null}
+      </div>
+
       {error ? (
         <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
           {error}
-        </div>
-      ) : null}
-      {savedMessage ? (
-        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          {savedMessage}
         </div>
       ) : null}
       {dncHolidayName ? (

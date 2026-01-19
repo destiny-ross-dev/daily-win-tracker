@@ -73,7 +73,7 @@ export default function DashboardPage() {
   const {
     profile,
     loading: profileLoading,
-    error,
+    error: profileError,
     refresh,
   } = useDashboardProfile();
   const { holidayName: dncHolidayName } = useDncDay({
@@ -97,14 +97,14 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">
                 Dashboard
               </h1>
             </div>
-            {error ? (
+            {profileError ? (
               <button
                 onClick={refresh}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800"
@@ -113,7 +113,7 @@ export default function DashboardPage() {
               </button>
             ) : null}
           </div>
-        </div> */}
+        </div>
 
         <DateRangePicker
           preset={preset}

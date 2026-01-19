@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { useDashboardProfile } from "@/components/dashboard/DashboardProfileContext";
+import { displayDateWeekdayMonthDayYearLong } from "@/lib/displayHelpers";
 
 type DncDay = {
   id: string;
@@ -17,6 +18,7 @@ export default function AgencySettingsPage() {
   const { profile, loading, error } = useDashboardProfile();
   const isAdmin = profile?.role?.toLowerCase() === "admin";
   const agencyId = profile?.agency_id ?? null;
+  const dncToggleStorageKey = "agencySettings.dncDaysOpen";
 
   const [dncDays, setDncDays] = useState<DncDay[]>([]);
   const [dncLoading, setDncLoading] = useState(false);
@@ -29,10 +31,14 @@ export default function AgencySettingsPage() {
   const [editDate, setEditDate] = useState("");
   const [editName, setEditName] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [dncOpen, setDncOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem(dncToggleStorageKey) !== "false";
+  });
 
   const canManageDnc = useMemo(
     () => isAdmin && Boolean(agencyId),
-    [agencyId, isAdmin]
+    [agencyId, isAdmin],
   );
 
   useEffect(() => {
@@ -41,6 +47,11 @@ export default function AgencySettingsPage() {
       router.replace("/dashboard");
     }
   }, [isAdmin, loading, router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(dncToggleStorageKey, String(dncOpen));
+  }, [dncOpen, dncToggleStorageKey]);
 
   useEffect(() => {
     if (!canManageDnc) return;
@@ -111,7 +122,7 @@ export default function AgencySettingsPage() {
     }
 
     setDncDays((prev) =>
-      [...prev, data as DncDay].sort((a, b) => a.date.localeCompare(b.date))
+      [...prev, data as DncDay].sort((a, b) => a.date.localeCompare(b.date)),
     );
     setHolidayDate("");
     setHolidayName("");
@@ -164,7 +175,7 @@ export default function AgencySettingsPage() {
     setDncDays((prev) =>
       prev
         .map((day) => (day.id === id ? (data as DncDay) : day))
-        .sort((a, b) => a.date.localeCompare(b.date))
+        .sort((a, b) => a.date.localeCompare(b.date)),
     );
     setSaving(false);
     setSavedMessage("Do Not Solicit day updated.");
@@ -198,9 +209,7 @@ export default function AgencySettingsPage() {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="text-lg font-medium text-slate-900">Loading…</div>
-        <div className="mt-2 text-sm text-slate-600">
-          Checking your access.
-        </div>
+        <div className="mt-2 text-sm text-slate-600">Checking your access.</div>
       </div>
     );
   }
@@ -233,169 +242,200 @@ export default function AgencySettingsPage() {
               Block outreach on agency holiday dates.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setDncOpen((prev) => !prev)}
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            aria-expanded={dncOpen}
+            aria-label={dncOpen ? "Minimize Do Not Solicit Days" : "Expand Do Not Solicit Days"}
+            title={dncOpen ? "Minimize" : "Expand"}
+          >
+            <svg
+              aria-hidden="true"
+              className={`h-4 w-4 transition-transform ${dncOpen ? "rotate-180" : ""}`}
+              viewBox="0 0 20 20"
+              fill="none"
+            >
+              <path
+                d="M5 7.5l5 5 5-5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         </div>
 
-        {!agencyId ? (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            Assign an agency to your profile to manage Do Not Solicit dates.
-          </div>
-        ) : null}
+        {dncOpen ? (
+          <>
+            <form
+              className="mt-5 grid gap-4 sm:grid-cols-3"
+              onSubmit={handleAddDncDay}
+            >
+              <div className="sm:col-span-1">
+                <label
+                  htmlFor="holiday-date"
+                  className="text-sm font-medium text-slate-700"
+                >
+                  Date
+                </label>
+                <input
+                  id="holiday-date"
+                  type="date"
+                  value={holidayDate}
+                  onChange={(event) => setHolidayDate(event.target.value)}
+                  disabled={!canManageDnc || saving}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor="holiday-name"
+                  className="text-sm font-medium text-slate-700"
+                >
+                  Holiday name
+                </label>
+                <input
+                  id="holiday-name"
+                  type="text"
+                  value={holidayName}
+                  onChange={(event) => setHolidayName(event.target.value)}
+                  disabled={!canManageDnc || saving}
+                  placeholder="New Year's Day"
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100"
+                />
+              </div>
+              <div className="sm:col-span-3 flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={!canManageDnc || saving}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                >
+                  {saving ? "Saving..." : "Add DNC day"}
+                </button>
+                {savedMessage ? (
+                  <span className="text-sm text-emerald-700">
+                    {savedMessage}
+                  </span>
+                ) : null}
+              </div>
+            </form>
 
-        <form
-          className="mt-5 grid gap-4 sm:grid-cols-3"
-          onSubmit={handleAddDncDay}
-        >
-          <div className="sm:col-span-1">
-            <label
-              htmlFor="holiday-date"
-              className="text-sm font-medium text-slate-700"
-            >
-              Date
-            </label>
-            <input
-              id="holiday-date"
-              type="date"
-              value={holidayDate}
-              onChange={(event) => setHolidayDate(event.target.value)}
-              disabled={!canManageDnc || saving}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label
-              htmlFor="holiday-name"
-              className="text-sm font-medium text-slate-700"
-            >
-              Holiday name
-            </label>
-            <input
-              id="holiday-name"
-              type="text"
-              value={holidayName}
-              onChange={(event) => setHolidayName(event.target.value)}
-              disabled={!canManageDnc || saving}
-              placeholder="New Year's Day"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100"
-            />
-          </div>
-          <div className="sm:col-span-3 flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={!canManageDnc || saving}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-            >
-              {saving ? "Saving..." : "Add DNC day"}
-            </button>
-            {savedMessage ? (
-              <span className="text-sm text-emerald-700">{savedMessage}</span>
+            {dncError ? (
+              <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                {dncError}
+              </div>
             ) : null}
-          </div>
-        </form>
 
-        {dncError ? (
-          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-            {dncError}
-          </div>
+            <div className="mt-6">
+              {dncLoading ? (
+                <div className="text-sm text-slate-500">
+                  Loading DNC days…
+                </div>
+              ) : dncDays.length === 0 ? (
+                <div className="text-sm text-slate-500">
+                  No Do Not Solicit dates yet.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm text-slate-700">
+                    <thead className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">Date</th>
+                        <th className="px-3 py-2">Holiday name</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dncDays.map((day) => (
+                        <tr
+                          key={day.id}
+                          className="border-b border-slate-100 last:border-b-0"
+                        >
+                          <td className="px-3 py-2">
+                            {editingId === day.id ? (
+                              <input
+                                type="date"
+                                value={editDate}
+                                onChange={(event) =>
+                                  setEditDate(event.target.value)
+                                }
+                                disabled={saving}
+                                className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100"
+                              />
+                            ) : (
+                              displayDateWeekdayMonthDayYearLong(day.date)
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            {editingId === day.id ? (
+                              <input
+                                type="text"
+                                value={editName}
+                                onChange={(event) =>
+                                  setEditName(event.target.value)
+                                }
+                                disabled={saving}
+                                className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100"
+                              />
+                            ) : (
+                              day.holiday_name
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center justify-end gap-2">
+                              {editingId === day.id ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveEdit(day.id)}
+                                    disabled={saving}
+                                    className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelEdit}
+                                    disabled={saving}
+                                    className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(day)}
+                                    className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(day.id)}
+                                    disabled={deleteId === day.id}
+                                    className="rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
+                                  >
+                                    {deleteId === day.id
+                                      ? "Deleting..."
+                                      : "Delete"}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
         ) : null}
-
-        <div className="mt-6">
-          {dncLoading ? (
-            <div className="text-sm text-slate-500">Loading DNC days…</div>
-          ) : dncDays.length === 0 ? (
-            <div className="text-sm text-slate-500">
-              No Do Not Solicit dates yet.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm text-slate-700">
-                <thead className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-3 py-2">Date</th>
-                    <th className="px-3 py-2">Holiday name</th>
-                    <th className="px-3 py-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dncDays.map((day) => (
-                    <tr
-                      key={day.id}
-                      className="border-b border-slate-100 last:border-b-0"
-                    >
-                      <td className="px-3 py-2">
-                        {editingId === day.id ? (
-                          <input
-                            type="date"
-                            value={editDate}
-                            onChange={(event) => setEditDate(event.target.value)}
-                            disabled={saving}
-                            className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100"
-                          />
-                        ) : (
-                          day.date
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        {editingId === day.id ? (
-                          <input
-                            type="text"
-                            value={editName}
-                            onChange={(event) => setEditName(event.target.value)}
-                            disabled={saving}
-                            className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100"
-                          />
-                        ) : (
-                          day.holiday_name
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-end gap-2">
-                          {editingId === day.id ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleSaveEdit(day.id)}
-                                disabled={saving}
-                                className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                              >
-                                Save
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelEdit}
-                                disabled={saving}
-                                className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => startEdit(day)}
-                                className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(day.id)}
-                                disabled={deleteId === day.id}
-                                className="rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
-                              >
-                                {deleteId === day.id ? "Deleting..." : "Delete"}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </section>
     </div>
   );

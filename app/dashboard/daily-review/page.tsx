@@ -88,7 +88,7 @@ export default function DailyReviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">
@@ -106,7 +106,7 @@ export default function DailyReviewPage() {
             {error}
           </div>
         ) : null}
-      </div> */}
+      </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Hourly wins</h2>
