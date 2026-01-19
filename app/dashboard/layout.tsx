@@ -17,6 +17,7 @@ import {
 type NavLink = {
   href: string;
   label: string;
+  adminOnly?: boolean;
 };
 
 const navLinks: NavLink[] = [
@@ -25,6 +26,7 @@ const navLinks: NavLink[] = [
   { href: "/dashboard/activity", label: "Activity Log" },
   { href: "/dashboard/metrics", label: "Metrics" },
   { href: "/dashboard/daily-review", label: "Daily Review" },
+  { href: "/dashboard/agency-settings", label: "Agency Settings", adminOnly: true },
 ];
 
 export default function DashboardLayout({
@@ -134,6 +136,7 @@ export default function DashboardLayout({
 
   const agencyName = profile?.agency_name ?? "Agency: Not set";
   const roleLabel = profile?.role ? capitalizeFirstLetter(profile.role) : null;
+  const isAdmin = profile?.role?.toLowerCase() === "admin";
 
   return (
     <DashboardProfileContext.Provider
@@ -152,7 +155,9 @@ export default function DashboardLayout({
                 Navigation
               </div>
               <nav className="mt-4 space-y-1">
-                {navLinks.map((link) => {
+                {navLinks
+                  .filter((link) => !link.adminOnly || isAdmin)
+                  .map((link) => {
                   const isActive = pathname === link.href;
                   return (
                     <Link

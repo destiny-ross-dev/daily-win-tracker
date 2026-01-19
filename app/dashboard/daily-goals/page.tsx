@@ -8,6 +8,8 @@ import {
   parseIsoDateLocal,
 } from "@/lib/dates";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { useDashboardProfile } from "@/components/dashboard/DashboardProfileContext";
+import { useDncDay } from "@/components/dashboard/useDncDay";
 
 type DailyGoals = {
   id?: string;
@@ -40,6 +42,7 @@ const emptyGoals = (): Omit<DailyGoals, "user_id" | "date"> => ({
 
 export default function DailyGoalsPage() {
   const { user } = useAuth();
+  const { profile } = useDashboardProfile();
   const date = useMemo(() => isoDateLocal(), []);
 
   const [goals, setGoals] = useState(emptyGoals());
@@ -47,6 +50,10 @@ export default function DailyGoalsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const { holidayName: dncHolidayName } = useDncDay({
+    agencyId: profile?.agency_id ?? null,
+    date,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +66,7 @@ export default function DailyGoalsPage() {
       const { data, error: gErr } = await supabase
         .from("daily_goals")
         .select(
-          "id, user_id, date, auto_quotes, fire_quotes, life_quotes, health_quotes, auto_sales, fire_sales, life_sales, health_sales, reviews, referrals"
+          "id, user_id, date, auto_quotes, fire_quotes, life_quotes, health_quotes, auto_sales, fire_sales, life_sales, health_sales, reviews, referrals",
         )
         .eq("user_id", user.id)
         .eq("date", date)
@@ -141,36 +148,21 @@ export default function DailyGoalsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              Today’s Goals
-            </h1>
-            <p className="mt-1 text-xs text-slate-500">
-              Date: {displayDateWeekdayMonthDayYear(parseIsoDateLocal(date))}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={saveGoals}
-            disabled={saving || loading}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-          >
-            {saving ? "Saving..." : "Save goals"}
-          </button>
+      {error ? (
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          {error}
         </div>
-        {error ? (
-          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-            {error}
-          </div>
-        ) : null}
-        {savedMessage ? (
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-            {savedMessage}
-          </div>
-        ) : null}
-      </div>
+      ) : null}
+      {savedMessage ? (
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+          {savedMessage}
+        </div>
+      ) : null}
+      {dncHolidayName ? (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+          DO NOT CALL {dncHolidayName}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <GoalCard title="Quotes">

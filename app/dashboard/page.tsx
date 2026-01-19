@@ -16,6 +16,7 @@ import {
 } from "@/components/dashboard/useDashboardData";
 import { isoDateLocal, parseIsoDateLocal } from "@/lib/dates";
 import { useDashboardProfile } from "@/components/dashboard/DashboardProfileContext";
+import { useDncDay } from "@/components/dashboard/useDncDay";
 
 type RangePreset = "today" | "this_week" | "this_month" | "custom";
 
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   const [preset, setPreset] = useState<RangePreset>("today");
   const [customStart, setCustomStart] = useState(isoDateLocal());
   const [customEnd, setCustomEnd] = useState(isoDateLocal());
+  const today = useMemo(() => isoDateLocal(), []);
 
   const range = useMemo<DateRange>(() => {
     const today = new Date();
@@ -70,6 +72,10 @@ export default function DashboardPage() {
     error,
     refresh,
   } = useDashboardProfile();
+  const { holidayName: dncHolidayName } = useDncDay({
+    agencyId: profile?.agency_id ?? null,
+    date: today,
+  });
 
   if (profileLoading) {
     return (
@@ -179,6 +185,12 @@ export default function DashboardPage() {
             </div>
           ) : null}
         </div>
+
+        {dncHolidayName ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+            DO NOT CALL {dncHolidayName}
+          </div>
+        ) : null}
 
         {/* Agency setup gate */}
         {!profile?.agency_id ? (

@@ -9,6 +9,7 @@ import {
 } from "@/lib/dates";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useDashboardProfile } from "@/components/dashboard/DashboardProfileContext";
+import { useDncDay } from "@/components/dashboard/useDncDay";
 import { ActivityCard } from "@/components/dashboard/activity/ActivityCard";
 import { ActivityFeed } from "@/components/dashboard/activity/ActivityFeed";
 import { ActivityField } from "@/components/dashboard/activity/ActivityField";
@@ -77,7 +78,7 @@ const quoteTriggerFields: ReadonlySet<QuoteTriggerField> = new Set([
 ]);
 
 function isQuoteTriggerField(
-  value: ActivityCountKey
+  value: ActivityCountKey,
 ): value is QuoteTriggerField {
   return quoteTriggerFields.has(value as QuoteTriggerField);
 }
@@ -95,6 +96,10 @@ export default function ActivityLogPage() {
 
   const [feed, setFeed] = useState<ActivityFeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
+  const { holidayName: dncHolidayName } = useDncDay({
+    agencyId: profile?.agency_id ?? null,
+    date,
+  });
 
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteSaving, setQuoteSaving] = useState(false);
@@ -138,9 +143,7 @@ export default function ActivityLogPage() {
   const readHourStats = useCallback(
     (key: string) => {
       if (!user) return { calls: 0, quotes: 0, sales: 0 };
-      const stored = window.localStorage.getItem(
-        `win-hour-${user.id}-${key}`
-      );
+      const stored = window.localStorage.getItem(`win-hour-${user.id}-${key}`);
       if (!stored) return { calls: 0, quotes: 0, sales: 0 };
       try {
         const parsed = JSON.parse(stored) as {
@@ -157,7 +160,7 @@ export default function ActivityLogPage() {
         return { calls: 0, quotes: 0, sales: 0 };
       }
     },
-    [user]
+    [user],
   );
 
   const loadHourStatsForKey = useCallback(
@@ -182,7 +185,7 @@ export default function ActivityLogPage() {
         sales: Number(data.sales ?? 0),
       };
     },
-    [readHourStats, user]
+    [readHourStats, user],
   );
 
   const writeHourStats = useCallback(
@@ -190,33 +193,34 @@ export default function ActivityLogPage() {
       if (!user) return;
       window.localStorage.setItem(
         `win-hour-${user.id}-${key}`,
-        JSON.stringify(next)
+        JSON.stringify(next),
       );
     },
-    [user]
+    [user],
   );
 
   const persistHourStats = useCallback(
-    async (key: string, next: { calls: number; quotes: number; sales: number }) => {
+    async (
+      key: string,
+      next: { calls: number; quotes: number; sales: number },
+    ) => {
       if (!user) return;
       const { date, hour } = parseHourKey(key);
       const won = next.calls >= 40 || next.quotes >= 1 || next.sales >= 1;
-      await supabase
-        .from("hourly_activity")
-        .upsert(
-          {
-            user_id: user.id,
-            date,
-            hour,
-            calls: next.calls,
-            quotes: next.quotes,
-            sales: next.sales,
-            won,
-          },
-          { onConflict: "user_id,date,hour" }
-        );
+      await supabase.from("hourly_activity").upsert(
+        {
+          user_id: user.id,
+          date,
+          hour,
+          calls: next.calls,
+          quotes: next.quotes,
+          sales: next.sales,
+          won,
+        },
+        { onConflict: "user_id,date,hour" },
+      );
     },
-    [user]
+    [user],
   );
 
   useEffect(() => {
@@ -273,7 +277,7 @@ export default function ActivityLogPage() {
         return next;
       });
     },
-    [persistHourStats, user, writeHourStats]
+    [persistHourStats, user, writeHourStats],
   );
 
   useEffect(() => {
@@ -287,7 +291,7 @@ export default function ActivityLogPage() {
       const { data, error: aErr } = await supabase
         .from("daily_activities")
         .select(
-          "id, user_id, date, no_answer_count, bad_contact_count, not_interested_count, callback_scheduled, quoted_callback_scheduled_count, quoted_lost_count, sales_count"
+          "id, user_id, date, no_answer_count, bad_contact_count, not_interested_count, callback_scheduled, quoted_callback_scheduled_count, quoted_lost_count, sales_count",
         )
         .eq("user_id", user.id)
         .eq("date", date)
@@ -338,7 +342,7 @@ export default function ActivityLogPage() {
     const { data: quotes, error: qErr } = await supabase
       .from("quotes_sales")
       .select(
-        "id, policyholder, lob, quoted_date, written_date, written_premium, created_at"
+        "id, policyholder, lob, quoted_date, written_date, written_premium, created_at",
       )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
@@ -473,14 +477,14 @@ export default function ActivityLogPage() {
 
   function updateQuoteField<Key extends keyof QuoteForm>(
     key: Key,
-    value: QuoteForm[Key]
+    value: QuoteForm[Key],
   ) {
     setQuoteForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function updateCallbackField<Key extends keyof CallbackForm>(
     key: Key,
-    value: CallbackForm[Key]
+    value: CallbackForm[Key],
   ) {
     setCallbackForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -584,7 +588,7 @@ export default function ActivityLogPage() {
       ...activity,
       [pendingQuoteField]: Math.max(
         (activity[pendingQuoteField] ?? 0) + pendingQuoteDelta,
-        0
+        0,
       ),
     };
 
@@ -651,7 +655,7 @@ export default function ActivityLogPage() {
       ...activity,
       callback_scheduled: Math.max(
         (activity.callback_scheduled ?? 0) + pendingCallbackDelta,
-        0
+        0,
       ),
     };
 
@@ -679,36 +683,21 @@ export default function ActivityLogPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              Activity Log
-            </h1>
-            <p className="mt-1 text-xs text-slate-500">
-              Date: {displayDateWeekdayMonthDayYear(parseIsoDateLocal(date))}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={saveActivity}
-            disabled={saving || loading}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-          >
-            {saving ? "Saving..." : "Save activity"}
-          </button>
+      {error ? (
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          {error}
         </div>
-        {error ? (
-          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-            {error}
-          </div>
-        ) : null}
-        {savedMessage ? (
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-            {savedMessage}
-          </div>
-        ) : null}
-      </div>
+      ) : null}
+      {savedMessage ? (
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+          {savedMessage}
+        </div>
+      ) : null}
+      {dncHolidayName ? (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+          DO NOT CALL {dncHolidayName}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <ActivityCard title="Call outcomes">
