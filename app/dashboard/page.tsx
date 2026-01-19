@@ -87,7 +87,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {/* <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">
@@ -103,7 +103,7 @@ export default function DashboardPage() {
               </button>
             ) : null}
           </div>
-        </div>
+        </div> */}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center gap-4">
@@ -230,10 +230,14 @@ export default function DashboardPage() {
                       <thead className="text-left text-slate-500">
                         <tr className="[&>th]:pb-2">
                           <th>Name</th>
-                          <th className="text-right">Dials</th>
-                          <th className="text-right">Quotes</th>
-                          <th className="text-right">Sales</th>
-                          <th className="text-right">Appts</th>
+                          <th className="text-center">Dials</th>
+                          <th className="text-center">Quotes</th>
+                          <th className="text-center">Sales</th>
+                          <th className="text-center">Appts</th>
+                          <th className="text-center">Contact %</th>
+                          <th className="text-center">Pitch %</th>
+                          <th className="text-center">Conv %</th>
+                          <th className="text-center">Premium</th>
                         </tr>
                       </thead>
                       <tbody className="text-slate-900">
@@ -248,17 +252,29 @@ export default function DashboardPage() {
                               className="border-t border-slate-100"
                             >
                               <td className="py-2">{n}</td>
-                              <td className="py-2 text-right tabular-nums">
+                              <td className="py-2 text-center tabular-nums">
                                 {r.dials}
                               </td>
-                              <td className="py-2 text-right tabular-nums">
+                              <td className="py-2 text-center tabular-nums">
                                 {r.quotes}
                               </td>
-                              <td className="py-2 text-right tabular-nums">
+                              <td className="py-2 text-center tabular-nums">
                                 {r.sales}
                               </td>
-                              <td className="py-2 text-right tabular-nums">
+                              <td className="py-2 text-center tabular-nums">
                                 {r.appointments}
+                              </td>
+                              <td className="py-2 text-center tabular-nums">
+                                {r.contactRate.toFixed(1)}%
+                              </td>
+                              <td className="py-2 text-center tabular-nums">
+                                {r.pitchRate.toFixed(1)}%
+                              </td>
+                              <td className="py-2 text-center tabular-nums">
+                                {r.conversionRate.toFixed(1)}%
+                              </td>
+                              <td className="py-2 text-center tabular-nums">
+                                {r.writtenPremium.toFixed(2)}
                               </td>
                             </tr>
                           );

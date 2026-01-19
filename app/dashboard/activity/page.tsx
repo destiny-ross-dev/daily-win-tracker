@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import {
   displayDateWeekdayMonthDayYear,
@@ -110,6 +110,172 @@ export default function ActivityLogPage() {
   const [callbackForm, setCallbackForm] = useState(emptyCallbackForm());
   const [pendingCallbackDelta, setPendingCallbackDelta] = useState(0);
 
+  const [hourKey, setHourKey] = useState("");
+  const [hourStats, setHourStats] = useState({
+    calls: 0,
+    quotes: 0,
+    sales: 0,
+  });
+  const hourKeyRef = useRef("");
+  const hourIntervalRef = useRef<number | null>(null);
+
+  const getHourKey = (value = new Date()) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    const hour = String(value.getHours()).padStart(2, "0");
+    return `${year}-${month}-${day}-${hour}`;
+  };
+
+  const parseHourKey = (key: string) => {
+    const parts = key.split("-");
+    return {
+      date: parts.slice(0, 3).join("-"),
+      hour: Number(parts[3] ?? 0),
+    };
+  };
+
+  const readHourStats = useCallback(
+    (key: string) => {
+      if (!user) return { calls: 0, quotes: 0, sales: 0 };
+      const stored = window.localStorage.getItem(
+        `win-hour-${user.id}-${key}`
+      );
+      if (!stored) return { calls: 0, quotes: 0, sales: 0 };
+      try {
+        const parsed = JSON.parse(stored) as {
+          calls?: number;
+          quotes?: number;
+          sales?: number;
+        };
+        return {
+          calls: Number(parsed.calls ?? 0),
+          quotes: Number(parsed.quotes ?? 0),
+          sales: Number(parsed.sales ?? 0),
+        };
+      } catch {
+        return { calls: 0, quotes: 0, sales: 0 };
+      }
+    },
+    [user]
+  );
+
+  const loadHourStatsForKey = useCallback(
+    async (key: string) => {
+      if (!user) return readHourStats(key);
+      const { date, hour } = parseHourKey(key);
+      const { data, error: hErr } = await supabase
+        .from("hourly_activity")
+        .select("calls, quotes, sales")
+        .eq("user_id", user.id)
+        .eq("date", date)
+        .eq("hour", hour)
+        .maybeSingle();
+
+      if (hErr || !data) {
+        return readHourStats(key);
+      }
+
+      return {
+        calls: Number(data.calls ?? 0),
+        quotes: Number(data.quotes ?? 0),
+        sales: Number(data.sales ?? 0),
+      };
+    },
+    [readHourStats, user]
+  );
+
+  const writeHourStats = useCallback(
+    (key: string, next: { calls: number; quotes: number; sales: number }) => {
+      if (!user) return;
+      window.localStorage.setItem(
+        `win-hour-${user.id}-${key}`,
+        JSON.stringify(next)
+      );
+    },
+    [user]
+  );
+
+  const persistHourStats = useCallback(
+    async (key: string, next: { calls: number; quotes: number; sales: number }) => {
+      if (!user) return;
+      const { date, hour } = parseHourKey(key);
+      const won = next.calls >= 40 || next.quotes >= 1 || next.sales >= 1;
+      await supabase
+        .from("hourly_activity")
+        .upsert(
+          {
+            user_id: user.id,
+            date,
+            hour,
+            calls: next.calls,
+            quotes: next.quotes,
+            sales: next.sales,
+            won,
+          },
+          { onConflict: "user_id,date,hour" }
+        );
+    },
+    [user]
+  );
+
+  useEffect(() => {
+    if (!user) return;
+    const timer = window.setTimeout(() => {
+      const initialKey = getHourKey();
+      hourKeyRef.current = initialKey;
+      setHourKey(initialKey);
+      void loadHourStatsForKey(initialKey).then((stats) => {
+        setHourStats(stats);
+      });
+
+      if (hourIntervalRef.current) {
+        window.clearInterval(hourIntervalRef.current);
+      }
+
+      hourIntervalRef.current = window.setInterval(() => {
+        const nextKey = getHourKey();
+        if (nextKey !== hourKeyRef.current) {
+          hourKeyRef.current = nextKey;
+          setHourKey(nextKey);
+          void loadHourStatsForKey(nextKey).then((stats) => {
+            setHourStats(stats);
+          });
+        }
+      }, 30000);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (hourIntervalRef.current) {
+        window.clearInterval(hourIntervalRef.current);
+        hourIntervalRef.current = null;
+      }
+    };
+  }, [user]);
+
+  const updateHourStats = useCallback(
+    (updates: Partial<{ calls: number; quotes: number; sales: number }>) => {
+      if (!user) return;
+      if (!hourKeyRef.current) {
+        const fallbackKey = getHourKey();
+        hourKeyRef.current = fallbackKey;
+        setHourKey(fallbackKey);
+      }
+      setHourStats((prev) => {
+        const next = {
+          calls: prev.calls + (updates.calls ?? 0),
+          quotes: prev.quotes + (updates.quotes ?? 0),
+          sales: prev.sales + (updates.sales ?? 0),
+        };
+        writeHourStats(hourKeyRef.current, next);
+        void persistHourStats(hourKeyRef.current, next);
+        return next;
+      });
+    },
+    [persistHourStats, user, writeHourStats]
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -171,7 +337,9 @@ export default function ActivityLogPage() {
 
     const { data: quotes, error: qErr } = await supabase
       .from("quotes_sales")
-      .select("id, policyholder, lob, quoted_date, issued_date, created_at")
+      .select(
+        "id, policyholder, lob, quoted_date, written_date, written_premium, created_at"
+      )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(20);
@@ -200,15 +368,15 @@ export default function ActivityLogPage() {
 
     const quoteItems =
       quotes?.map<ActivityFeedItem>((q) => {
-        const isIssued = !!q.issued_date;
+        const isSale = !!q.written_date && q.written_premium != null;
         const lobLabel = q.lob ? q.lob.toUpperCase() : "Quote";
         return {
           id: q.id,
-          type: isIssued ? "sale" : "quote",
-          title: isIssued ? "Sale issued" : "Quote created",
+          type: isSale ? "sale" : "quote",
+          title: isSale ? "Sale written" : "Quote created",
           detail: `${q.policyholder} • ${lobLabel}`,
           userName,
-          timestamp: q.created_at ?? q.issued_date ?? q.quoted_date ?? "",
+          timestamp: q.created_at ?? q.written_date ?? q.quoted_date ?? "",
         };
       }) ?? [];
 
@@ -284,6 +452,10 @@ export default function ActivityLogPage() {
 
       return next;
     });
+
+    if (delta > 0) {
+      updateHourStats({ calls: delta });
+    }
   }
 
   function closeQuoteModal() {
@@ -434,6 +606,13 @@ export default function ActivityLogPage() {
     setPendingQuoteDelta(0);
     setQuoteOpen(false);
 
+    if (pendingQuoteDelta > 0) {
+      updateHourStats({
+        calls: pendingQuoteDelta,
+        sales: pendingQuoteField === "sales_count" ? 1 : 0,
+        quotes: pendingQuoteField === "sales_count" ? 0 : 1,
+      });
+    }
     void loadFeed();
   }
 
@@ -492,6 +671,9 @@ export default function ActivityLogPage() {
     setCallbackSaving(false);
     setPendingCallbackDelta(0);
     setCallbackOpen(false);
+    if (pendingCallbackDelta > 0) {
+      updateHourStats({ calls: pendingCallbackDelta });
+    }
     void loadFeed();
   }
 
@@ -569,7 +751,15 @@ export default function ActivityLogPage() {
           />
         </ActivityCard>
 
-        <ActivityFeed items={feed} loading={feedLoading} />
+        <div className="space-y-6">
+          <WinTheHour
+            hourKey={hourKey}
+            calls={hourStats.calls}
+            quotes={hourStats.quotes}
+            sales={hourStats.sales}
+          />
+          <ActivityFeed items={feed} loading={feedLoading} />
+        </div>
       </div>
 
       <CallbackModal
@@ -592,6 +782,67 @@ export default function ActivityLogPage() {
         onSave={saveQuote}
         onChange={updateQuoteField}
       />
+    </div>
+  );
+}
+
+function WinTheHour({
+  hourKey,
+  calls,
+  quotes,
+  sales,
+}: {
+  hourKey: string;
+  calls: number;
+  quotes: number;
+  sales: number;
+}) {
+  const hourLabel = hourKey ? hourKey.split("-").slice(-1)[0] : "";
+  const windowLabel = hourLabel ? `${hourLabel}:00-${hourLabel}:59` : "—";
+  const won = calls >= 40 || quotes >= 1 || sales >= 1;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-lg font-semibold text-slate-900">Win the Hour</h2>
+        <span
+          className={`text-xs font-semibold ${
+            won ? "text-emerald-600" : "text-rose-600"
+          }`}
+        >
+          {won ? "Won" : "Lost"}
+        </span>
+      </div>
+      <div className="mt-1 text-xs text-slate-500">{windowLabel}</div>
+      <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+        <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            Calls
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">
+            {calls}
+          </div>
+          <div className="mt-1 text-xs text-slate-500">Goal: 40</div>
+        </div>
+        <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            Quotes
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">
+            {quotes}
+          </div>
+          <div className="mt-1 text-xs text-slate-500">Goal: 1</div>
+        </div>
+        <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            Sales
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">
+            {sales}
+          </div>
+          <div className="mt-1 text-xs text-slate-500">Goal: 1</div>
+        </div>
+      </div>
     </div>
   );
 }

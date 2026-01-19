@@ -18,6 +18,10 @@ type ProducerRow = Producer & {
   quotes: number;
   sales: number;
   appointments: number;
+  contactRate: number;
+  pitchRate: number;
+  conversionRate: number;
+  writtenPremium: number;
 };
 
 type DailyActivity = {
@@ -237,6 +241,7 @@ export function useDashboardData(range?: DateRange) {
       // Build producer rows
       const quoteCountByUser = new Map<string, number>();
       const salesCountByUser = new Map<string, number>();
+      const writtenPremiumByUser = new Map<string, number>();
       const apptCountByUser = new Map<string, number>();
 
       const isInRange = (value: string | null) =>
@@ -253,6 +258,11 @@ export function useDashboardData(range?: DateRange) {
           salesCountByUser.set(
             r.user_id,
             (salesCountByUser.get(r.user_id) ?? 0) + 1
+          );
+          writtenPremiumByUser.set(
+            r.user_id,
+            (writtenPremiumByUser.get(r.user_id) ?? 0) +
+              Number(r.written_premium)
           );
         }
       });
@@ -275,12 +285,34 @@ export function useDashboardData(range?: DateRange) {
           (a?.quoted_lost_count ?? 0) +
           (a?.sales_count ?? 0);
 
+        const contacts =
+          (a?.callback_scheduled ?? 0) +
+          (a?.not_interested_count ?? 0) +
+          (a?.quoted_lost_count ?? 0) +
+          (a?.quoted_callback_scheduled_count ?? 0) +
+          (salesCountByUser.get(p.id) ?? 0);
+
+        const pitches =
+          (a?.quoted_lost_count ?? 0) +
+          (a?.quoted_callback_scheduled_count ?? 0) +
+          (salesCountByUser.get(p.id) ?? 0);
+
+        const contactRate = dials ? (contacts / dials) * 100 : 0;
+        const pitchRate = contacts ? (pitches / contacts) * 100 : 0;
+        const conversionRate = pitches
+          ? ((salesCountByUser.get(p.id) ?? 0) / pitches) * 100
+          : 0;
+
         return {
           ...p,
           dials,
           quotes: quoteCountByUser.get(p.id) ?? 0,
           sales: salesCountByUser.get(p.id) ?? 0,
           appointments: apptCountByUser.get(p.id) ?? 0,
+          contactRate,
+          pitchRate,
+          conversionRate,
+          writtenPremium: writtenPremiumByUser.get(p.id) ?? 0,
         };
       });
 
@@ -291,7 +323,7 @@ export function useDashboardData(range?: DateRange) {
       const { data: feedQuotes, error: fqErr } = await supabase
         .from("quotes_sales")
         .select(
-          "id, user_id, policyholder, lob, written_date, quoted_date, created_at"
+          "id, user_id, policyholder, lob, written_date, written_premium, quoted_date, created_at"
         )
         .in("user_id", userIds)
         .order("created_at", { ascending: false })
@@ -320,7 +352,7 @@ export function useDashboardData(range?: DateRange) {
 
       const quoteItems =
         feedQuotes?.map<ActivityFeedItem>((q) => {
-          const isSale = !!q.written_date;
+          const isSale = !!q.written_date && q.written_premium != null;
           const lobLabel = q.lob ? q.lob.toUpperCase() : "Quote";
           const userName = producerNameById.get(q.user_id) ?? "Unknown";
           return {
