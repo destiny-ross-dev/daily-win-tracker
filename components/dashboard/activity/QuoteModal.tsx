@@ -9,6 +9,7 @@ export function QuoteModal({
   error,
   form,
   pendingField,
+  showSalesFields = false,
   onClose,
   onSave,
   onChange,
@@ -18,6 +19,7 @@ export function QuoteModal({
   error: string | null;
   form: QuoteForm;
   pendingField: QuoteField;
+  showSalesFields?: boolean;
   onClose: () => void;
   onSave: () => void;
   onChange: <Key extends keyof QuoteForm>(key: Key, value: QuoteForm[Key]) => void;
@@ -103,7 +105,7 @@ export function QuoteModal({
               />
             </label>
           ) : null}
-          {pendingField === "sales_count" ? (
+          {pendingField === "sales_count" || showSalesFields ? (
             <>
               <DateField
                 label="Written date"

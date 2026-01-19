@@ -25,6 +25,7 @@ const navLinks: NavLink[] = [
   { href: "/dashboard/daily-goals", label: "Today's Goals" },
   { href: "/dashboard/activity", label: "Activity Log" },
   { href: "/dashboard/metrics", label: "Metrics" },
+  { href: "/dashboard/quotes-sales", label: "Quotes & Sales" },
   { href: "/dashboard/daily-review", label: "Daily Review" },
   { href: "/dashboard/agency-settings", label: "Agency Settings", adminOnly: true },
 ];
